@@ -23,6 +23,20 @@ services:
       CLUSTER_ID: 4L6g3nShT-eMCtK--X86sw
     volumes:
       - atlas-kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "/opt/kafka/bin/kafka-broker-api-versions.sh", "--bootstrap-server", "kafka:19092"]
+      interval: 5s
+      timeout: 10s
+      retries: 12
+
+  kafka-init:
+    image: apache/kafka:4.2.1
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic sensor.readings --partitions 3 --replication-factor 1
 
 volumes:
   atlas-kafka-data:
