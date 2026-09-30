@@ -1,6 +1,9 @@
 package main
 
 import (
+	"context"
+	crand "crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -8,6 +11,13 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/twmb/franz-go/pkg/kgo"
+)
+
+const (
+	topic       string = "sensor.readings"
+	equipmentID string = "COMP-001"
 )
 
 type SensorEvent struct {
@@ -44,9 +54,30 @@ func generateReading(rng *rand.Rand, config SensorConfig) float64 {
 }
 
 func main() {
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
 
-	equipmentID := "COMP-001"
+func run() error {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	runIDBytes := make([]byte, 16)
+	if _, err := crand.Read(runIDBytes); err != nil {
+		return fmt.Errorf("run ID error: %w", err)
+	}
+	runID := hex.EncodeToString(runIDBytes)
+
+	client, err := initKafka()
+
+	if err != nil {
+		return fmt.Errorf("kafka client error: %w", err)
+	}
+
+	defer client.Close()
 
 	sensors := []SensorConfig{
 		{
@@ -79,14 +110,6 @@ func main() {
 
 	defer ticker.Stop()
 
-	stop := make(chan os.Signal, 1)
-
-	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
-
-	defer signal.Stop(stop)
-
-	encoder := json.NewEncoder(os.Stdout)
-
 	var sequence int64
 
 	fmt.Fprintln(os.Stderr, "ATLAS Sensor Simulator started...")
@@ -98,7 +121,7 @@ func main() {
 				sequence++
 
 				event := SensorEvent{
-					EventID:       fmt.Sprintf("%s-%s-%d", equipmentID, sensor.Name, sequence),
+					EventID:       fmt.Sprintf("%s-%s-%d-%s", equipmentID, sensor.Name, sequence, runID),
 					EquipmentID:   equipmentID,
 					SensorType:    sensor.Name,
 					Value:         generateReading(rng, sensor),
@@ -108,15 +131,50 @@ func main() {
 					SchemaVersion: 1,
 				}
 
-				if err := encoder.Encode(event); err != nil {
-					fmt.Fprintln(os.Stderr, "encode error:", err)
-					return
+				byteData, err := json.Marshal(event)
+
+				if err != nil {
+					return fmt.Errorf("encode error: %w", err)
 				}
+
+				record := &kgo.Record{
+					Value: byteData,
+					Key:   []byte(equipmentID),
+				}
+
+				publishCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+				err = client.ProduceSync(publishCtx, record).FirstErr()
+				cancel()
+				if err != nil {
+					if ctx.Err() != nil {
+						// Shutdown signal arrived mid-publish; not a real failure.
+						break
+					}
+					fmt.Fprintln(os.Stderr, "publish error:", err)
+					continue
+				}
+
 			}
-		case <-stop:
+		case <-ctx.Done():
 			fmt.Fprintln(os.Stderr, "Simulator shutting down...")
-			return
+			return nil
 		}
 	}
+}
 
+func initKafka() (*kgo.Client, error) {
+	broker := os.Getenv("KAFKA_BROKER")
+	if broker == "" {
+		broker = "localhost:9092"
+	}
+
+	opts := []kgo.Opt{
+		kgo.SeedBrokers(broker),
+		kgo.DefaultProduceTopic(topic),
+		kgo.ClientID("event-simulator"),
+	}
+
+	client, err := kgo.NewClient(opts...)
+
+	return client, err
 }
