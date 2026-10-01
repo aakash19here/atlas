@@ -12,24 +12,14 @@ import (
 	"syscall"
 	"time"
 
+	"atlas/internal/events"
+
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 const (
-	topic       string = "sensor.readings"
-	equipmentID string = "COMP-001"
+	topic string = "sensor.readings"
 )
-
-type SensorEvent struct {
-	EventID       string    `json:"event_id"`
-	EquipmentID   string    `json:"equipment_id"`
-	SensorType    string    `json:"sensor_type"`
-	Value         float64   `json:"value"`
-	Unit          string    `json:"unit"`
-	Timestamp     time.Time `json:"timestamp"`
-	Sequence      int64     `json:"sequence"`
-	SchemaVersion int       `json:"schema_version"`
-}
 
 type SensorConfig struct {
 	Name     string
@@ -120,15 +110,15 @@ func run() error {
 			for _, sensor := range sensors {
 				sequence++
 
-				event := SensorEvent{
-					EventID:       fmt.Sprintf("%s-%s-%d-%s", equipmentID, sensor.Name, sequence, runID),
-					EquipmentID:   equipmentID,
+				event := events.SensorEvent{
+					EventID:       fmt.Sprintf("%s-%s-%d-%s", events.EquipmentID, sensor.Name, sequence, runID),
+					EquipmentID:   events.EquipmentID,
 					SensorType:    sensor.Name,
 					Value:         generateReading(rng, sensor),
 					Unit:          sensor.Unit,
 					Timestamp:     time.Now().UTC(),
 					Sequence:      sequence,
-					SchemaVersion: 1,
+					SchemaVersion: events.SchemaVersion,
 				}
 
 				byteData, err := json.Marshal(event)
@@ -139,7 +129,7 @@ func run() error {
 
 				record := &kgo.Record{
 					Value: byteData,
-					Key:   []byte(equipmentID),
+					Key:   []byte(events.EquipmentID),
 				}
 
 				publishCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
