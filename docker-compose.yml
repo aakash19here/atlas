@@ -1,4 +1,23 @@
 services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: atlas-postgres
+    hostname: postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password 
+      POSTGRES_DB: atlas
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d atlas"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    volumes:
+      - atlas_postgres_data:/var/lib/postgresql
   kafka:
     image: apache/kafka:4.2.1
     container_name: atlas-kafka
@@ -22,7 +41,7 @@ services:
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       CLUSTER_ID: 4L6g3nShT-eMCtK--X86sw
     volumes:
-      - atlas-kafka-data:/var/lib/kafka/data
+      - atlas_kafka_data:/var/lib/kafka/data
     healthcheck:
       test: ["CMD", "/opt/kafka/bin/kafka-broker-api-versions.sh", "--bootstrap-server", "kafka:19092"]
       interval: 5s
@@ -39,4 +58,5 @@ services:
       - /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic sensor.readings --partitions 3 --replication-factor 1
 
 volumes:
-  atlas-kafka-data:
+  atlas_kafka_data:
+  atlas_postgres_data:
