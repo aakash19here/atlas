@@ -18,6 +18,7 @@ services:
       start_period: 10s
     volumes:
       - atlas_postgres_data:/var/lib/postgresql/data
+  
   kafka:
     image: apache/kafka:4.2.1
     container_name: atlas-kafka
@@ -56,6 +57,18 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic sensor.readings --partitions 3 --replication-factor 1
+    
+  kafka-ui:
+    container_name: kafka-ui
+    image: provectuslabs/kafka-ui:latest
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19092
+    ports:
+      - 8080:8080
 
 volumes:
   atlas_kafka_data:
