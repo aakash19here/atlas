@@ -17,6 +17,8 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
+var EquipmentIDs = []string{"COMP", "PUMP", "TURBINE"}
+
 const (
 	topic string = "sensor.readings"
 )
@@ -107,7 +109,7 @@ func run() error {
 	for {
 		select {
 		case <-ticker.C:
-			for _, equipmentID := range events.EquipmentIDs {
+			for _, equipmentID := range EquipmentIDs {
 				for _, sensor := range sensors {
 					sequence++
 

@@ -9,8 +9,6 @@ import (
 	"time"
 )
 
-var EquipmentIDs = []string{"COMP", "PUMP", "TURBINE"}
-
 const SchemaVersion int = 1
 
 type SensorEvent struct {
