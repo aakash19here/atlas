@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-const EquipmentID string = "COMP-001"
+var EquipmentIDs = []string{"COMP", "PUMP", "TURBINE"}
 
 const SchemaVersion int = 1
 

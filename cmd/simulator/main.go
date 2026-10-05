@@ -107,43 +107,46 @@ func run() error {
 	for {
 		select {
 		case <-ticker.C:
-			for _, sensor := range sensors {
-				sequence++
+			for _, equipmentID := range events.EquipmentIDs {
+				for _, sensor := range sensors {
+					sequence++
 
-				event := events.SensorEvent{
-					EventID:       fmt.Sprintf("%s-%s-%d-%s", events.EquipmentID, sensor.Name, sequence, runID),
-					EquipmentID:   events.EquipmentID,
-					SensorType:    sensor.Name,
-					Value:         generateReading(rng, sensor),
-					Unit:          sensor.Unit,
-					Timestamp:     time.Now().UTC(),
-					Sequence:      sequence,
-					SchemaVersion: events.SchemaVersion,
-				}
-
-				byteData, err := json.Marshal(event)
-
-				if err != nil {
-					return fmt.Errorf("encode error: %w", err)
-				}
-
-				record := &kgo.Record{
-					Value: byteData,
-					Key:   []byte(events.EquipmentID),
-				}
-
-				publishCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-				err = client.ProduceSync(publishCtx, record).FirstErr()
-				cancel()
-				if err != nil {
-					if ctx.Err() != nil {
-						// Shutdown signal arrived mid-publish; not a real failure.
-						break
+					event := events.SensorEvent{
+						EventID:       fmt.Sprintf("%s-%s-%d-%s", equipmentID, sensor.Name, sequence, runID),
+						EquipmentID:   equipmentID,
+						SensorType:    sensor.Name,
+						Value:         generateReading(rng, sensor),
+						Unit:          sensor.Unit,
+						Timestamp:     time.Now().UTC(),
+						Sequence:      sequence,
+						SchemaVersion: events.SchemaVersion,
 					}
-					fmt.Fprintln(os.Stderr, "publish error:", err)
-					continue
-				}
 
+					byteData, err := json.Marshal(event)
+
+					if err != nil {
+						return fmt.Errorf("encode error: %w", err)
+					}
+
+					record := &kgo.Record{
+						Value: byteData,
+						Key:   []byte(equipmentID),
+					}
+
+					publishCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+					err = client.ProduceSync(publishCtx, record).FirstErr()
+					cancel()
+					if err != nil {
+						if ctx.Err() != nil {
+							// Shutdown signal arrived mid-publish; not a real failure.
+							fmt.Fprintln(os.Stderr, "Simulator shutting down...")
+							return nil
+						}
+						fmt.Fprintln(os.Stderr, "publish error:", err)
+						continue
+					}
+
+				}
 			}
 		case <-ctx.Done():
 			fmt.Fprintln(os.Stderr, "Simulator shutting down...")
