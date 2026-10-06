@@ -17,6 +17,19 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
+/*
+- Without an active fault, each machine–sensor pair gets a
+  0.2% chance to start a fault lasting 5–15 readings.
+- During a fault, every reading for that pair is abnormal.
+- Otherwise, it gets a 5% chance of an occasional abnormal spike.
+- Each machine–sensor pair has its own fault countdown. Only a reading
+  for that exact pair decreases its countdown.
+- Multiple pairs can have faults at the same time. For example:
+  COMP temperature: 7 readings, TURBINE temperature: 12 readings,
+  and PUMP pressure: 5 readings. Each fault starts and finishes independently.
+- A fault in one sensor does not force the machine's other sensors into a fault.
+*/
+
 var EquipmentIDs = []string{"COMP", "PUMP", "TURBINE"}
 
 const (
