@@ -102,7 +102,7 @@ func run() error {
 
 	defer ticker.Stop()
 
-	var sequence int64
+	sequenceCounter := make(map[string]int64)
 
 	fmt.Fprintln(os.Stderr, "ATLAS Sensor Simulator started...")
 
@@ -111,7 +111,8 @@ func run() error {
 		case <-ticker.C:
 			for _, equipmentID := range EquipmentIDs {
 				for _, sensor := range sensors {
-					sequence++
+					sequenceCounter[equipmentID]++
+					sequence := sequenceCounter[equipmentID]
 
 					event := events.SensorEvent{
 						EventID:       fmt.Sprintf("%s-%s-%d-%s", equipmentID, sensor.Name, sequence, runID),
