@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"atlas/internal/events"
+	"atlas/internal/logger"
 
 	"github.com/twmb/franz-go/pkg/kgo"
 )
@@ -79,15 +81,19 @@ func generateFaultReading(rng *rand.Rand, config SensorConfig, key sensorKey, fa
 }
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+	ctx := context.Background()
+	handler := slog.NewJSONHandler(os.Stdout, nil)
+	log := logger.NewSlog(slog.New(handler))
+
+	if err := run(ctx, log); err != nil {
+		log.Error(ctx, "simulator failed", "error", err)
 		os.Exit(1)
 	}
 }
 
-func run() error {
+func run(parentContext context.Context, log logger.Logger) error {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(parentContext, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	runIDBytes := make([]byte, 16)
@@ -139,7 +145,7 @@ func run() error {
 
 	sequenceCounter := make(map[string]int64)
 
-	fmt.Fprintln(os.Stderr, "ATLAS Sensor Simulator started...")
+	log.Info(ctx, "ATLAS Sensor Simulator started...")
 
 	for {
 		select {
@@ -178,17 +184,22 @@ func run() error {
 					if err != nil {
 						if ctx.Err() != nil {
 							// Shutdown signal arrived mid-publish; not a real failure.
-							fmt.Fprintln(os.Stderr, "Simulator shutting down...")
+							log.Info(ctx, "simulator shutting down")
 							return nil
 						}
-						fmt.Fprintln(os.Stderr, "publish error:", err)
+						log.Error(ctx, "publish failed",
+							"error", err,
+							"equipment_id", equipmentID,
+							"sensor_type", sensor.Name,
+							"event_id", event.EventID,
+						)
 						continue
 					}
 
 				}
 			}
 		case <-ctx.Done():
-			fmt.Fprintln(os.Stderr, "Simulator shutting down...")
+			log.Info(ctx, "simulator shutting down")
 			return nil
 		}
 	}
