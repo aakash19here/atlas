@@ -41,6 +41,7 @@ const (
 	minFaultReadings      = 5
 	spikeProbability      = 0.05
 	maxFaultReadings      = 15
+	ticks                 = 3
 )
 
 type SensorConfig struct {
@@ -140,7 +141,7 @@ func run(parentContext context.Context, log logger.Logger) error {
 		},
 	}
 
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(ticks * time.Second)
 
 	defer ticker.Stop()
 
