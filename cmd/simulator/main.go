@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"atlas/internal/events"
+	"atlas/internal/kafka"
 	"atlas/internal/logger"
 
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -102,7 +103,7 @@ func run(parentContext context.Context, log logger.Logger) error {
 	}
 	runID := hex.EncodeToString(runIDBytes)
 
-	client, err := initKafka()
+	client, err := kafka.NewClient("event-simulator", kgo.DefaultProduceTopic(topic))
 
 	if err != nil {
 		return fmt.Errorf("kafka client error: %w", err)
@@ -203,21 +204,4 @@ func run(parentContext context.Context, log logger.Logger) error {
 			return nil
 		}
 	}
-}
-
-func initKafka() (*kgo.Client, error) {
-	broker := os.Getenv("KAFKA_BROKER")
-	if broker == "" {
-		broker = "localhost:9092"
-	}
-
-	opts := []kgo.Opt{
-		kgo.SeedBrokers(broker),
-		kgo.DefaultProduceTopic(topic),
-		kgo.ClientID("event-simulator"),
-	}
-
-	client, err := kgo.NewClient(opts...)
-
-	return client, err
 }
