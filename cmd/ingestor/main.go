@@ -1,6 +1,7 @@
 package main
 
 import (
+	"atlas/internal/events"
 	"atlas/internal/kafka"
 	"atlas/internal/logger"
 	"context"
@@ -59,8 +60,19 @@ func run(parentContext context.Context, log logger.Logger) error {
 		iter := fetches.RecordIter()
 		for !iter.Done() {
 			record := iter.Next()
-			fmt.Printf("Received message from topic %s [partition %d]: %s\n",
-				record.Topic, record.Partition, string(record.Value))
+			event, err := events.DecodeSensorEvent(record.Value)
+
+			if err != nil {
+				log.Error(ctx, "invalid sensor event",
+					"topic", record.Topic,
+					"partition", record.Partition,
+					"offset", record.Offset,
+					"error", err,
+				)
+				continue
+			}
+
+			log.Info(ctx, "event received", "sequence", event.Sequence, "sensor", event.SensorType, "value", event.Value, "unit", event.Unit)
 		}
 	}
 
