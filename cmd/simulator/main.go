@@ -20,7 +20,11 @@ import (
 var EquipmentIDs = []string{"COMP", "PUMP", "TURBINE"}
 
 const (
-	topic string = "sensor.readings"
+	topic                 = "sensor.readings"
+	faultStartProbability = 0.002
+	minFaultReadings      = 5
+	spikeProbability      = 0.05
+	maxFaultReadings      = 15
 )
 
 type SensorConfig struct {
@@ -32,17 +36,33 @@ type SensorConfig struct {
 	SpikeMax float64
 }
 
+type sensorKey struct {
+	EquipmentID string
+	SensorName  string
+}
+
 func randomRange(rng *rand.Rand, min, max float64) float64 {
 	return min + rng.Float64()*(max-min)
 }
 
 func generateReading(rng *rand.Rand, config SensorConfig) float64 {
-	// 5% probability of generating an abnormal reading
-	if rng.Float64() < 0.05 {
+	// probability of generating an abnormal reading
+	if rng.Float64() < spikeProbability {
 		return randomRange(rng, config.SpikeMin, config.SpikeMax)
 	}
 
 	return randomRange(rng, config.Min, config.Max)
+}
+
+func generateFaultReading(rng *rand.Rand, config SensorConfig, key sensorKey, faultReadingsRemaining map[sensorKey]int) float64 {
+	if faultReadingsRemaining[key] == 0 && rng.Float64() < faultStartProbability {
+		faultReadingsRemaining[key] = minFaultReadings + rng.Intn(maxFaultReadings-minFaultReadings+1)
+	}
+	if faultReadingsRemaining[key] > 0 {
+		faultReadingsRemaining[key]--
+		return randomRange(rng, config.SpikeMin, config.SpikeMax)
+	}
+	return generateReading(rng, config)
 }
 
 func main() {
@@ -70,6 +90,8 @@ func run() error {
 	}
 
 	defer client.Close()
+
+	faultReadingsRemaining := make(map[sensorKey]int)
 
 	sensors := []SensorConfig{
 		{
@@ -111,6 +133,7 @@ func run() error {
 		case <-ticker.C:
 			for _, equipmentID := range EquipmentIDs {
 				for _, sensor := range sensors {
+					key := sensorKey{EquipmentID: equipmentID, SensorName: sensor.Name}
 					sequenceCounter[equipmentID]++
 					sequence := sequenceCounter[equipmentID]
 
@@ -118,7 +141,7 @@ func run() error {
 						EventID:       fmt.Sprintf("%s-%s-%d-%s", equipmentID, sensor.Name, sequence, runID),
 						EquipmentID:   equipmentID,
 						SensorType:    sensor.Name,
-						Value:         generateReading(rng, sensor),
+						Value:         generateFaultReading(rng, sensor, key, faultReadingsRemaining),
 						Unit:          sensor.Unit,
 						Timestamp:     time.Now().UTC(),
 						Sequence:      sequence,
