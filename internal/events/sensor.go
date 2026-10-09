@@ -29,6 +29,9 @@ func (e SensorEvent) Validate() error {
 	if strings.TrimSpace(e.EquipmentID) == "" {
 		return fmt.Errorf("equipment_id: must be nonblank")
 	}
+	if strings.ContainsRune(e.EventID, 0) || strings.ContainsRune(e.EquipmentID, 0) {
+		return fmt.Errorf("event_id/equipment_id: must not contain NUL")
+	}
 	if e.SchemaVersion != SchemaVersion {
 		return fmt.Errorf("schema_version: unsupported version %d", e.SchemaVersion)
 	}
