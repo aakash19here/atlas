@@ -9,10 +9,13 @@ import (
 )
 
 type Querier interface {
+	CloseAlert(ctx context.Context, arg CloseAlertParams) error
 	// The caller must supply equal-length arrays, with matching indexes per event.
 	InsertReadings(ctx context.Context, arg InsertReadingsParams) error
 	ListAlertRules(ctx context.Context) ([]AlertRule, error)
 	ListEquipment(ctx context.Context) ([]Equipment, error)
+	ListOpenAlerts(ctx context.Context) ([]ListOpenAlertsRow, error)
+	OpenAlert(ctx context.Context, arg OpenAlertParams) (int64, error)
 }
 
 var _ Querier = (*Queries)(nil)
